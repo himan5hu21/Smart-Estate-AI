@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  /* Common / Base Colors */
+  --background: #f8fafc; /* hsl(220, 33%, 98%) */
+  --foreground: #020617; /* hsl(224, 71.4%, 4.1%) */
+  --card: #ffffff;
+  --card-foreground: #020617;
+  --popover: #ffffff;
+  --popover-foreground: #020617;
+  --border: #e2e8f0; /* hsl(210, 32%, 91%) */
+  --input: #e2e8f0;
+  --ring: #020617;
+
+  /* --- Role: Admin (Royal Indigo & Slate) --- */
+  --admin-primary: #4f46e5; /* hsl(243, 75%, 59%) */
+  --admin-secondary: #262c4a; /* hsl(226, 34%, 24%) */
+  --admin-accent: #6366f1;
+
+  /* --- Role: Agent (Emerald Green & Teal) --- */
+  --agent-primary: #059669; /* hsl(161, 94%, 30%) */
+  --agent-secondary: #0d9488; /* hsl(174, 63%, 40%) */
+  --agent-accent: #10b981;
+
+  /* --- Role: User / Buyer & Seller (Ocean Blue & Gold) --- */
+  --user-primary: #2563eb; /* hsl(221, 83%, 53%) */
+  --user-secondary: #1d4ed8;
+  --user-accent: #eab308; /* Gold */
+
+  --radius: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --foreground: #f8fafc;
+    --card: #020617;
+    --card-foreground: #f8fafc;
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: #cbd5e1;
+  }
+}
+
+@theme {
+  --color-admin-primary: var(--admin-primary);
+  --color-admin-secondary: var(--admin-secondary);
+  --color-agent-primary: var(--agent-primary);
+  --color-agent-secondary: var(--agent-secondary);
+  --color-user-primary: var(--user-primary);
+  --color-user-accent: var(--user-accent);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+}
+
+@layer utilities {
+  .glassmorphism {
+    background-color: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+  
+  .premium-gradient-admin {
+    background-image: linear-gradient(to bottom right, #4f46e5, #4338ca, #0f172a);
+  }
+
+  .premium-gradient-agent {
+    background-image: linear-gradient(to bottom right, #10b981, #0d9488, #064e3b);
+  }
+
+  .premium-gradient-user {
+    background-image: linear-gradient(to bottom right, #2563eb, #1d4ed8, #1e1b4b);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  }
+}
