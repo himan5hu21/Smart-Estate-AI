@@ -26,6 +26,7 @@ interface InputNumberProps<T extends FieldValues>
   preventEnter?: boolean;
   strictMax?: boolean;
   role?: UserRole;
+  showRequired?: boolean;
 }
 
 const roleStyles: Record<UserRole, { input: string; buttons: string }> = {
@@ -40,6 +41,10 @@ const roleStyles: Record<UserRole, { input: string; buttons: string }> = {
   user: {
     input: "focus:ring-user-primary/20 focus:border-user-primary",
     buttons: "hover:bg-user-primary/10 active:bg-user-primary/20",
+  },
+  seller: {
+    input: "focus:ring-seller-primary/20 focus:border-seller-primary",
+    buttons: "hover:bg-seller-primary/10 active:bg-seller-primary/20",
   },
 };
 
@@ -59,6 +64,7 @@ export const InputNumber = <T extends FieldValues>({
   preventEnter = true,
   strictMax = false,
   role = "user",
+  showRequired = false,
   ...props
 }: InputNumberProps<T>) => {
   const internalRef = useRef<HTMLInputElement | null>(null);
@@ -285,6 +291,7 @@ export const InputNumber = <T extends FieldValues>({
           className="block text-sm font-semibold text-gray-700/90"
         >
           {label}
+          {showRequired && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
 

@@ -9,7 +9,7 @@ import {
 } from "react-hook-form";
 import { cn } from "@/lib/utils";
 
-export type UserRole = "admin" | "agent" | "user";
+export type UserRole = "admin" | "agent" | "user" | "seller";
 
 interface InputProps<T extends FieldValues> 
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'name' | 'prefix'> {
@@ -20,12 +20,14 @@ interface InputProps<T extends FieldValues>
   prefix?: React.ReactNode; 
   suffix?: React.ReactNode; 
   role?: UserRole;
+  showRequired?: boolean;
 }
 
 const roleStyles: Record<UserRole, string> = {
   admin: "focus:ring-admin-primary/20 focus:border-admin-primary",
   agent: "focus:ring-agent-primary/20 focus:border-agent-primary",
   user: "focus:ring-user-primary/20 focus:border-user-primary",
+  seller: "focus:ring-seller-primary/20 focus:border-seller-primary",
 };
 
 export const Input = <T extends FieldValues>({
@@ -38,6 +40,7 @@ export const Input = <T extends FieldValues>({
   prefix,
   suffix,
   role = "user",
+  showRequired = false,
   ...props
 }: InputProps<T>) => {
 
@@ -55,6 +58,7 @@ export const Input = <T extends FieldValues>({
           className="block text-sm font-semibold text-gray-700/90"
         >
           {label}
+          {showRequired && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
 

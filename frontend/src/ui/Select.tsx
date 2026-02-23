@@ -43,6 +43,7 @@ interface SelectProps<T extends FieldValues> {
   role?: UserRole;
   clearable?: boolean;
   searchable?: boolean;
+  showRequired?: boolean;
 }
 
 const roleStyles: Record<UserRole, { trigger: string; item: string; tag: string; check: string }> = {
@@ -83,6 +84,7 @@ export const Select = <T extends FieldValues>({
   role = "user",
   clearable = true,
   searchable = true,
+  showRequired = false,
 }: SelectProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState("");
@@ -263,6 +265,7 @@ export const Select = <T extends FieldValues>({
       {label && (
         <label className="block text-sm font-semibold text-gray-700/90">
           {label}
+          {showRequired && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
 

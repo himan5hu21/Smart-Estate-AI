@@ -22,3 +22,8 @@ export async function uploadFile(file: File, bucket: string = 'property-images')
 export async function uploadPropertyImage(file: File) {
   return uploadFile(file, 'property-images')
 }
+
+export async function uploadMultipleFiles(files: File[], bucket: string = 'property-images'): Promise<string[]> {
+  const uploadPromises = files.map(file => uploadFile(file, bucket))
+  return Promise.all(uploadPromises)
+}
