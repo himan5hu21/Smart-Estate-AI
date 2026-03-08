@@ -285,25 +285,44 @@ Format as JSON:
   "trend": "up" | "down" | "stable",
   "reasoning": "brief explanation"
 }}"""
-
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a real estate valuation expert. Respond only with valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.3,
-                max_tokens=1000
-            )
-            
-            valuation = json.loads(response.choices[0].message.content)
-            valuation["tokens_used"] = response.usage.total_tokens
-            valuation["cost"] = self._calculate_cost(response.usage)
-            
+            if self.use_gemini:
+                # Use Google Gemini (FREE)
+                def _generate_gemini():
+                    response = self.client.models.generate_content(
+                        model=self.model,
+                        contents=prompt
+                    )
+                    text = response.text.strip()
+                    if text.startswith('```json'):
+                        text = text[7:]
+                    if text.startswith('```'):
+                        text = text[3:]
+                    if text.endswith('```'):
+                        text = text[:-3]
+                    return json.loads(text.strip())
+
+                valuation = await asyncio.to_thread(_generate_gemini)
+                valuation["tokens_used"] = 0
+                valuation["cost"] = 0.0
+            else:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a real estate valuation expert. Respond only with valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.3,
+                    max_tokens=1000
+                )
+
+                valuation = json.loads(response.choices[0].message.content)
+                valuation["tokens_used"] = response.usage.total_tokens
+                valuation["cost"] = self._calculate_cost(response.usage)
+
             return valuation
-            
+
         except Exception as e:
             raise Exception(f"AI valuation failed: {str(e)}")
     
@@ -356,25 +375,44 @@ Format as JSON:
     }}
   ]
 }}"""
-
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a real estate matching expert. Respond only with valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.5,
-                max_tokens=1500
-            )
-            
-            matches = json.loads(response.choices[0].message.content)
-            matches["tokens_used"] = response.usage.total_tokens
-            matches["cost"] = self._calculate_cost(response.usage)
-            
+            if self.use_gemini:
+                # Use Google Gemini (FREE)
+                def _generate_gemini():
+                    response = self.client.models.generate_content(
+                        model=self.model,
+                        contents=prompt
+                    )
+                    text = response.text.strip()
+                    if text.startswith('```json'):
+                        text = text[7:]
+                    if text.startswith('```'):
+                        text = text[3:]
+                    if text.endswith('```'):
+                        text = text[:-3]
+                    return json.loads(text.strip())
+
+                matches = await asyncio.to_thread(_generate_gemini)
+                matches["tokens_used"] = 0
+                matches["cost"] = 0.0
+            else:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": "You are a real estate matching expert. Respond only with valid JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0.5,
+                    max_tokens=1500
+                )
+
+                matches = json.loads(response.choices[0].message.content)
+                matches["tokens_used"] = response.usage.total_tokens
+                matches["cost"] = self._calculate_cost(response.usage)
+
             return matches
-            
+
         except Exception as e:
             raise Exception(f"AI matching failed: {str(e)}")
     

@@ -14,7 +14,6 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  TrendingUp,
   Search,
   ShieldCheck,
   Mail
@@ -80,14 +79,14 @@ export default function Sidebar({ role, userName }: SidebarProps) {
       { label: 'Add Property', href: '/agent/add-property', icon: PlusCircle },
       { label: 'My Listings', href: '/agent/my-listings', icon: Building2 },
       { label: 'Inquiries', href: '/agent/inquiries', icon: Mail },
-      { label: 'Leads', href: '/agent/leads', icon: TrendingUp },
+      { label: 'User Messages', href: '/agent/messages', icon: Mail },
       { label: 'Verification', href: '/agent/onboarding', icon: ShieldCheck },
       { label: 'Profile', href: '/agent/profile', icon: UserCircle },
     ],
     seller: [
       { label: 'Dashboard', href: '/seller/dashboard', icon: LayoutDashboard },
       { label: 'Add Property', href: '/seller/add-property', icon: PlusCircle },
-      { label: 'My Listings', href: '/seller/my-properties', icon: Building2 },
+      { label: 'My Listings', href: '/seller/my-listings', icon: Building2 },
       { label: 'Inquiries', href: '/seller/inquiries', icon: Mail },
     ],
     buyer: [
@@ -95,6 +94,7 @@ export default function Sidebar({ role, userName }: SidebarProps) {
       { label: 'Search Properties', href: '/user/search', icon: Search },
       { label: 'Find Agents', href: '/user/agents', icon: Users },
       { label: 'My Inquiries', href: '/user/my-inquiries', icon: Mail },
+      { label: 'Agent Messages', href: '/user/agent-messages', icon: Mail },
       { label: 'Saved', href: '/user/saved', icon: Bookmark },
       { label: 'Alerts', href: '/user/alerts', icon: Bell },
       { label: 'Profile', href: '/user/profile', icon: UserCircle },
@@ -230,3 +230,5 @@ export default function Sidebar({ role, userName }: SidebarProps) {
     </aside>
   )
 }
+
+

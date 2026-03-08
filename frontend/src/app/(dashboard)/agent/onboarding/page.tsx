@@ -11,12 +11,20 @@ import { updateProfile, getCurrentUser } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/ui/Card'
 import { ShieldCheck, Upload, FileText } from 'lucide-react'
+import { useToast } from '@/ui/Toast'
+
+const MAX_DOC_SIZE = 10 * 1024 * 1024 // 10MB
+const ALLOWED_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+const MAX_LICENSE_LENGTH = 30
 
 export default function AgentOnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [licenseFile, setLicenseFile] = useState<File | null>(null)
   const [idFile, setIdFile] = useState<File | null>(null)
+  const [licenseFileError, setLicenseFileError] = useState<string | null>(null)
+  const [idFileError, setIdFileError] = useState<string | null>(null)
   const router = useRouter()
+  const { toast } = useToast()
 
   const {
     register,
@@ -26,10 +34,60 @@ export default function AgentOnboardingPage() {
     resolver: zodResolver(agentOnboardingSchema),
   })
 
+  const validateDocumentFile = (file: File, label: 'License copy' | 'Government ID'): string | null => {
+    if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+      return `${label}: Only PDF, JPG, and PNG files are allowed.`
+    }
+
+    if (file.size > MAX_DOC_SIZE) {
+      return `${label}: File size must be less than 10MB.`
+    }
+
+    return null
+  }
+
+  const handleLicenseFileChange = (file: File | null) => {
+    if (!file) {
+      setLicenseFile(null)
+      setLicenseFileError('Please upload your license copy.')
+      return
+    }
+
+    const validationError = validateDocumentFile(file, 'License copy')
+    if (validationError) {
+      setLicenseFile(null)
+      setLicenseFileError(validationError)
+      return
+    }
+
+    setLicenseFile(file)
+    setLicenseFileError(null)
+  }
+
+  const handleIdFileChange = (file: File | null) => {
+    if (!file) {
+      setIdFile(null)
+      setIdFileError('Please upload your government ID.')
+      return
+    }
+
+    const validationError = validateDocumentFile(file, 'Government ID')
+    if (validationError) {
+      setIdFile(null)
+      setIdFileError(validationError)
+      return
+    }
+
+    setIdFile(file)
+    setIdFileError(null)
+  }
+
   const onSubmit = async (data: AgentOnboardingFormValues) => {
     if (!licenseFile || !idFile) {
-        alert("Please upload both License and ID documents.")
-        return
+      if (!licenseFile) setLicenseFileError('Please upload your license copy.')
+      if (!idFile) setIdFileError('Please upload your government ID.')
+      toast({ type: 'error', message: 'Please upload both License and Government ID documents.' })
+      return
     }
 
     setLoading(true)
@@ -37,33 +95,25 @@ export default function AgentOnboardingPage() {
       const user = await getCurrentUser()
       if (!user) throw new Error('Not authenticated')
 
+      const normalizedLicenseNumber = data.license_number.trim().toUpperCase()
+
       // Upload documents
       // In a real app, these should go to a private bucket
       const licenseUrl = await uploadPropertyImage(licenseFile)
       const idUrl = await uploadPropertyImage(idFile)
 
-      // Update profile
+      // Use columns that exist in profiles table to avoid server 500 errors.
       await updateProfile(user.id, {
-        license_number: data.license_number,
-        documents: {
-            license_url: licenseUrl,
-            id_url: idUrl,
-            params: {
-                license_verified: false,
-                id_verified: false
-            }
-        },
-        is_onboarded: true // Mark as onboarded
+        rera_number: normalizedLicenseNumber,
+        document_urls: [licenseUrl, idUrl],
       })
 
-      // We might need to add 'is_onboarded' to profile schema in DB if not present,
-      // or just rely on presence of license_number
-      
-      alert('Onboarding submitted! You can now access your dashboard.')
+      toast({ type: 'success', message: 'Verification submitted successfully.' })
       router.push('/agent/dashboard')
     } catch (error) {
       console.error(error)
-      alert('Failed to submit onboarding details.')
+      const message = error instanceof Error ? error.message : 'Failed to submit onboarding details.'
+      toast({ type: 'error', message })
     } finally {
       setLoading(false)
     }
@@ -103,7 +153,11 @@ export default function AgentOnboardingPage() {
                 error={errors.license_number}
                 placeholder="e.g. RE-12345678"
                 className="h-12"
+                maxLength={MAX_LICENSE_LENGTH}
+                inputMode="text"
+                autoCapitalize="characters"
               />
+              <p className="-mt-4 text-xs text-slate-500">Max {MAX_LICENSE_LENGTH} characters. Use letters, numbers, and hyphen.</p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -111,18 +165,19 @@ export default function AgentOnboardingPage() {
                     <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer group relative">
                         <input 
                             type="file" 
-                            accept="image/*,.pdf" 
-                            onChange={(e) => setLicenseFile(e.target.files?.[0] || null)}
+                            accept="application/pdf,image/jpeg,image/jpg,image/png"
+                            onChange={(e) => handleLicenseFileChange(e.target.files?.[0] || null)}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                         <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                             <Upload className="w-5 h-5" />
                         </div>
                         <p className="text-sm font-medium text-slate-900">
-                            {licenseFile ? licenseFile.name : "Click to upload"}
+                            {licenseFile ? licenseFile.name : 'Click to upload'}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">PDF or Image</p>
+                        <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG (max 10MB)</p>
                     </div>
+                    {licenseFileError && <p className="text-xs font-medium text-red-500">{licenseFileError}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -130,18 +185,19 @@ export default function AgentOnboardingPage() {
                     <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer group relative">
                         <input 
                             type="file" 
-                            accept="image/*,.pdf" 
-                            onChange={(e) => setIdFile(e.target.files?.[0] || null)}
+                            accept="application/pdf,image/jpeg,image/jpg,image/png"
+                            onChange={(e) => handleIdFileChange(e.target.files?.[0] || null)}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                             <FileText className="w-5 h-5" />
                         </div>
                          <p className="text-sm font-medium text-slate-900">
-                            {idFile ? idFile.name : "Click to upload"}
+                            {idFile ? idFile.name : 'Click to upload'}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">PDF or Image</p>
+                        <p className="text-xs text-slate-500 mt-1">PDF, JPG, PNG (max 10MB)</p>
                     </div>
+                    {idFileError && <p className="text-xs font-medium text-red-500">{idFileError}</p>}
                 </div>
               </div>
 

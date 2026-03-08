@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { Card } from '@/ui/Card'
@@ -6,8 +6,10 @@ import { Button } from '@/ui/Button'
 import { Input } from '@/ui/Input'
 import { Select } from '@/ui/Select'
 import { Badge } from '@/ui/Badge'
+import Link from 'next/link'
 import MapPicker from '@/ui/MapPicker'
 import { createClient } from '@/utils/supabase/client'
+import { aiClient } from '@/lib/ai-client'
 
 interface Alert {
   id: string
@@ -32,6 +34,7 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   
   // Form state
   const [officeLocation, setOfficeLocation] = useState<{ lat: number; lng: number } | null>(null)
@@ -48,12 +51,27 @@ export default function AlertsPage() {
     loadUserAndAlerts()
   }, [])
 
+  const buildAlertPayloadFromExisting = (alert: Alert, enabled: boolean) => ({
+    user_id: alert.user_id,
+    office_location: alert.preferences.office_location,
+    max_commute_minutes: alert.preferences.max_commute_minutes,
+    min_price: alert.preferences.min_price ?? null,
+    max_price: alert.preferences.max_price ?? null,
+    bedrooms: alert.preferences.bedrooms ?? null,
+    property_type: alert.preferences.property_type ?? null,
+    locations: alert.preferences.locations ?? null,
+    amenities: alert.preferences.amenities ?? null,
+    enabled
+  })
+
   const loadUserAndAlerts = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (user) {
         setUserId(user.id)
-        await loadAlerts(user.id)
+        setAccessToken(session?.access_token ?? null)
+        await loadAlerts(user.id, session?.access_token ?? undefined)
       }
     } catch (error) {
       console.error('Error loading user:', error)
@@ -62,13 +80,10 @@ export default function AlertsPage() {
     }
   }
 
-  const loadAlerts = async (uid: string) => {
+  const loadAlerts = async (uid: string, token?: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/alerts/user/${uid}`)
-      if (response.ok) {
-        const data = await response.json()
-        setAlerts(data)
-      }
+      const data = await aiClient.getUserAlerts(uid, token || accessToken || undefined)
+      setAlerts(data)
     } catch (error) {
       console.error('Error loading alerts:', error)
     }
@@ -94,17 +109,10 @@ export default function AlertsPage() {
         enabled: true
       }
 
-      const response = await fetch('http://localhost:8000/api/alerts/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(alertData)
-      })
-
-      if (response.ok) {
-        await loadAlerts(userId)
-        setShowCreateForm(false)
-        resetForm()
-      }
+      await aiClient.createAlert(alertData, accessToken || undefined)
+      await loadAlerts(userId)
+      setShowCreateForm(false)
+      resetForm()
     } catch (error) {
       console.error('Error creating alert:', error)
     }
@@ -115,16 +123,9 @@ export default function AlertsPage() {
       const alert = alerts.find(a => a.id === alertId)
       if (!alert) return
 
-      const response = await fetch(`http://localhost:8000/api/alerts/${alertId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...alert,
-          enabled: !currentStatus
-        })
-      })
+      await aiClient.updateAlert(alertId, buildAlertPayloadFromExisting(alert, !currentStatus), accessToken || undefined)
 
-      if (response.ok && userId) {
+      if (userId) {
         await loadAlerts(userId)
       }
     } catch (error) {
@@ -136,11 +137,9 @@ export default function AlertsPage() {
     if (!confirm('Are you sure you want to delete this alert?')) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/alerts/${alertId}`, {
-        method: 'DELETE'
-      })
+      await aiClient.deleteAlert(alertId, accessToken || undefined)
 
-      if (response.ok && userId) {
+      if (userId) {
         await loadAlerts(userId)
       }
     } catch (error) {
@@ -312,9 +311,9 @@ export default function AlertsPage() {
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Price:</span>
                         <span>
-                          {alert.preferences.min_price && `₹${(alert.preferences.min_price / 100000).toFixed(1)}L`}
+                          {alert.preferences.min_price && `INR ${(alert.preferences.min_price / 100000).toFixed(1)}L`}
                           {alert.preferences.min_price && alert.preferences.max_price && ' - '}
-                          {alert.preferences.max_price && `₹${(alert.preferences.max_price / 100000).toFixed(1)}L`}
+                          {alert.preferences.max_price && `INR ${(alert.preferences.max_price / 100000).toFixed(1)}L`}
                         </span>
                       </div>
                     )}
@@ -350,9 +349,8 @@ export default function AlertsPage() {
                       Created {new Date(alert.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                </div>
-
-                <div className="flex gap-2">
+                </div>                <div className="flex gap-2">
+                  <Link href={`/user/alerts/${alert.id}/properties`}><Button variant="outline" size="sm">View Alert Properties</Button></Link>
                   <Button
                     variant="outline"
                     size="sm"
@@ -368,11 +366,29 @@ export default function AlertsPage() {
                     Delete
                   </Button>
                 </div>
-              </div>
-            </Card>
+              </div>            </Card>
           ))}
         </div>
       )}
     </div>
   )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

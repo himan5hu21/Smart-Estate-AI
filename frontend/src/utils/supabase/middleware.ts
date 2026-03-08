@@ -65,7 +65,6 @@ export async function updateSession(request: NextRequest) {
     path.startsWith('/admin/') ||
     path.startsWith('/agent/dashboard') ||
     path.startsWith('/agent/add-property') ||
-    path.startsWith('/agent/leads') ||
     path.startsWith('/agent/my-listings') ||
     path.startsWith('/agent/onboarding') ||
     path.startsWith('/agent/profile') ||
@@ -98,8 +97,7 @@ export async function updateSession(request: NextRequest) {
     // Agent routes - only agents can access (admins might be allowed too if you want)
     if ((path.startsWith('/agent/dashboard') || 
          path.startsWith('/agent/add-property') || 
-         path.startsWith('/agent/leads') ||
-         path.startsWith('/agent/my-listings') ||
+              path.startsWith('/agent/my-listings') ||
          path.startsWith('/agent/onboarding') ||
          path.startsWith('/agent/profile') ||
          path.startsWith('/agent/property/')) && 
@@ -131,3 +129,4 @@ function getUserDashboard(role: string | undefined) {
     default: return '/user/dashboard'
   }
 }
+

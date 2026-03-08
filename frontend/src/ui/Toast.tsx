@@ -77,7 +77,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
 function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed top-4 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2 pointer-events-none w-full px-4">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={() => removeToast(toast.id)} />
       ))}
@@ -103,11 +103,11 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
   return (
     <div
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm items-start gap-4 rounded-xl border p-4 shadow-lg transition-all duration-300 animate-in slide-in-from-right-full",
+        "pointer-events-auto flex w-full max-w-sm items-center gap-4 rounded-xl border p-4 shadow-lg transition-all duration-300 animate-in slide-in-from-top-full fade-in",
         bgMap[toast.type]
       )}
     >
-      <div className="shrink-0 pt-0.5">
+      <div className="shrink-0 flex items-center">
         {iconMap[toast.type]}
       </div>
       <div className="flex-1">
@@ -117,7 +117,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
       </div>
       <button
         onClick={onRemove}
-        className="shrink-0 rounded-md p-1 text-gray-400 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        className="shrink-0 flex items-center justify-center rounded-md p-1 text-gray-400 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
       >
         <X className="w-4 h-4" />
       </button>

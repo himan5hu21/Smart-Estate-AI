@@ -109,7 +109,7 @@ const PropertyDetailsPage = () => {
               </div>
               <div className="text-left md:text-right">
                 <p className="text-slate-500 text-sm font-medium mb-1">Price</p>
-                <p className="text-3xl font-black text-blue-600">${property.price?.toLocaleString()}</p>
+                <p className="text-3xl font-black text-blue-600">₹{property.price?.toLocaleString()}</p>
               </div>
             </div>
 

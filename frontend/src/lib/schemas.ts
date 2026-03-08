@@ -58,8 +58,13 @@ export const searchSchema = z.object({
 export type SearchFormValues = z.infer<typeof searchSchema>
 
 export const agentOnboardingSchema = z.object({
-  license_number: z.string().min(5, "License number is required"),
-  experience_years: z.number().min(0, "Experience must be positive").optional(),
+  license_number: z
+    .string()
+    .trim()
+    .min(5, 'License number is required')
+    .max(30, 'License number is too long')
+    .regex(/^(?=.*\d)[A-Za-z0-9-]+$/, 'License number must include at least one number and use only letters, numbers, and hyphen'),
+  experience_years: z.number().min(0, 'Experience must be positive').optional(),
   specialization: z.string().optional(),
   office_address: z.string().optional(),
   // Files are handled separately in the component
@@ -68,7 +73,7 @@ export const agentOnboardingSchema = z.object({
 export type AgentOnboardingFormValues = z.infer<typeof agentOnboardingSchema>
 
 export const agentProfileSchema = z.object({
-  experience_years: z.number().min(0, "Experience must be positive").default(0),
+  experience_years: z.number().min(0, 'Experience must be positive').default(0),
   specialization: z.string().optional(),
   office_address: z.string().optional(),
 })

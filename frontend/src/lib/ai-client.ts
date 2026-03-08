@@ -1,4 +1,4 @@
-/**
+﻿/**
  * AI Features Client
  * Connects to Python backend for AI features
  */
@@ -179,10 +179,13 @@ class AIClient {
   }
 
   // Alerts
-  async createAlert(alert: AlertPreference) {
+  async createAlert(alert: AlertPreference, accessToken?: string) {
     const response = await fetch(`${this.baseUrl}/api/alerts/create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify(alert),
     });
 
@@ -193,8 +196,10 @@ class AIClient {
     return response.json();
   }
 
-  async getUserAlerts(userId: string) {
-    const response = await fetch(`${this.baseUrl}/api/alerts/user/${userId}`);
+  async getUserAlerts(userId: string, accessToken?: string) {
+    const response = await fetch(`${this.baseUrl}/api/alerts/user/${userId}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
 
     if (!response.ok) {
       throw new Error('Failed to get alerts');
@@ -203,10 +208,13 @@ class AIClient {
     return response.json();
   }
 
-  async updateAlert(alertId: string, alert: AlertPreference) {
+  async updateAlert(alertId: string, alert: AlertPreference, accessToken?: string) {
     const response = await fetch(`${this.baseUrl}/api/alerts/${alertId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify(alert),
     });
 
@@ -217,9 +225,10 @@ class AIClient {
     return response.json();
   }
 
-  async deleteAlert(alertId: string) {
+  async deleteAlert(alertId: string, accessToken?: string) {
     const response = await fetch(`${this.baseUrl}/api/alerts/${alertId}`, {
       method: 'DELETE',
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
 
     if (!response.ok) {
@@ -229,10 +238,13 @@ class AIClient {
     return response.json();
   }
 
-  async checkNewPropertiesForAlert(alertId: string) {
+  async checkNewPropertiesForAlert(alertId: string, accessToken?: string) {
     const response = await fetch(
       `${this.baseUrl}/api/alerts/check-new-properties/${alertId}`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      }
     );
 
     if (!response.ok) {
@@ -255,3 +267,6 @@ class AIClient {
 }
 
 export const aiClient = new AIClient();
+
+
+

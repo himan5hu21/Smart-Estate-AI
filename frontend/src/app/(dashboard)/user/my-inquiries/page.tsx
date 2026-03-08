@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Mail, Clock, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react'
 import { getMySubmittedInquiries } from '@/lib/api'
 import { Button } from '@/ui/Button'
@@ -19,18 +19,23 @@ interface Inquiry {
   status: 'new' | 'replied' | 'closed'
   response?: string
   responded_at?: string
-  property?: {
-    title: string
-    location: string
-    images?: string[]
-  }
+  property?: { title: string; location: string; images?: string[] }
+}
+
+interface InquiryThread {
+  key: string
+  property_id: number
+  property?: { title: string; location: string; images?: string[] }
+  inquiries: Inquiry[]
+  latest: Inquiry
+  pendingCount: number
 }
 
 export default function MyInquiriesPage() {
   const { error: showError, success: showSuccess } = useToast()
   const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null)
+  const [selectedThreadKey, setSelectedThreadKey] = useState<string | null>(null)
   const [showFollowUp, setShowFollowUp] = useState(false)
   const [followUpMessage, setFollowUpMessage] = useState('')
   const [sendingFollowUp, setSendingFollowUp] = useState(false)
@@ -47,14 +52,25 @@ export default function MyInquiriesPage() {
     }
   }
 
-  useEffect(() => {
-    loadInquiries()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  useEffect(() => { loadInquiries() }, [])
+
+  const threads = useMemo(() => {
+    const map = new Map<number, Inquiry[]>()
+    inquiries.forEach((inq) => {
+      if (!map.has(inq.property_id)) map.set(inq.property_id, [])
+      map.get(inq.property_id)!.push(inq)
+    })
+    return Array.from(map.entries()).map(([property_id, items]) => {
+      const sorted = [...items].sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at))
+      return { key: String(property_id), property_id, property: sorted[0].property, inquiries: sorted, latest: sorted[sorted.length - 1], pendingCount: sorted.filter((i) => i.status === 'new').length }
+    }).sort((a, b) => +new Date(b.latest.created_at) - +new Date(a.latest.created_at))
+  }, [inquiries])
+
+  const selectedThread = threads.find((t) => t.key === selectedThreadKey) || null
 
   const handleFollowUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedInquiry || !followUpMessage.trim()) return
+    if (!selectedThread || !followUpMessage.trim()) return
 
     setSendingFollowUp(true)
     try {
@@ -62,12 +78,7 @@ export default function MyInquiriesPage() {
       const user = await getCurrentUser()
       const profile = user ? await getProfile(user.id) : null
 
-      await submitInquiry({
-        property_id: selectedInquiry.property_id,
-        name: profile?.full_name || selectedInquiry.name,
-        email: user?.email || selectedInquiry.email,
-        message: `Follow-up question:\n\n${followUpMessage}\n\n---\nOriginal inquiry: "${selectedInquiry.message}"\nPrevious response: "${selectedInquiry.response}"`
-      })
+      await submitInquiry({ property_id: selectedThread.property_id, name: profile?.full_name || selectedThread.latest.name, email: user?.email || selectedThread.latest.email, message: followUpMessage })
 
       showSuccess('Follow-up question sent successfully!')
       setFollowUpMessage('')
@@ -81,282 +92,30 @@ export default function MyInquiriesPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      new: 'bg-blue-100 text-blue-700',
-      replied: 'bg-green-100 text-green-700',
-      closed: 'bg-gray-100 text-gray-700'
-    }
-    return colors[status as keyof typeof colors] || colors.new
-  }
+  const stats = { total: threads.length, pending: threads.filter((t) => t.pendingCount > 0).length, replied: threads.filter((t) => t.pendingCount === 0).length }
 
-  const stats = {
-    total: inquiries.length,
-    pending: inquiries.filter(i => i.status === 'new').length,
-    replied: inquiries.filter(i => i.status === 'replied').length
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    )
-  }
+  if (isLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900 mb-2">My Inquiries</h1>
-        <p className="text-slate-600">Track your property inquiries and responses</p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Card className="p-4">
-          <p className="text-sm text-slate-600 mb-1">Total Inquiries</p>
-          <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-slate-600 mb-1">Pending Response</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.pending}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-slate-600 mb-1">Replied</p>
-          <p className="text-2xl font-bold text-green-600">{stats.replied}</p>
-        </Card>
-      </div>
-
+      <div className="mb-8"><h1 className="text-3xl font-bold text-slate-900 mb-2">My Inquiries</h1><p className="text-slate-600">One card per property conversation</p></div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><Card className="p-4"><p className="text-sm text-slate-600 mb-1">Conversations</p><p className="text-2xl font-bold text-slate-900">{stats.total}</p></Card><Card className="p-4"><p className="text-sm text-slate-600 mb-1">Pending</p><p className="text-2xl font-bold text-blue-600">{stats.pending}</p></Card><Card className="p-4"><p className="text-sm text-slate-600 mb-1">Resolved</p><p className="text-2xl font-bold text-green-600">{stats.replied}</p></Card></div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Inquiries List */}
         <div className="lg:col-span-2 space-y-4">
-          {inquiries.length === 0 ? (
-            <Card className="p-12 text-center">
-              <Mail className="w-16 h-16 mx-auto text-slate-300 mb-4" />
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">No inquiries yet</h3>
-              <p className="text-slate-600 mb-4">Start exploring properties and ask questions!</p>
-              <Button asChild>
-                <Link href="/user/search">Browse Properties</Link>
-              </Button>
+          {threads.length === 0 ? <Card className="p-12 text-center"><Mail className="w-16 h-16 mx-auto text-slate-300 mb-4" /><h3 className="text-xl font-semibold text-slate-900 mb-2">No inquiries yet</h3><Button asChild><Link href="/user/search">Browse Properties</Link></Button></Card> : threads.map((thread) => (
+            <Card key={thread.key} className={`p-6 cursor-pointer transition-all hover:shadow-lg ${selectedThread?.key === thread.key ? 'ring-2 ring-blue-500' : ''}`} onClick={() => { setSelectedThreadKey(thread.key); setShowFollowUp(false) }}>
+              <div className="flex items-start justify-between mb-3"><div className="flex items-start gap-3">{thread.property?.images?.[0] && <img src={thread.property.images[0]} alt={thread.property.title} className="w-16 h-16 rounded-lg object-cover" />}<div><h3 className="font-semibold text-slate-900">{thread.property?.title || 'Property'}</h3><p className="text-sm text-slate-600">{thread.property?.location}</p></div></div><Badge className={thread.inquiries.every((i) => i.status === 'closed') ? 'bg-gray-100 text-gray-700' : thread.pendingCount > 0 ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>{thread.inquiries.every((i) => i.status === 'closed') ? 'closed' : thread.pendingCount > 0 ? `${thread.pendingCount} pending` : 'replied'}</Badge></div>
+              <p className="text-sm text-slate-600 line-clamp-2">{thread.latest.message}</p>
             </Card>
-          ) : (
-            inquiries.map((inquiry) => (
-              <Card
-                key={inquiry.id}
-                className={`p-6 cursor-pointer transition-all hover:shadow-lg ${
-                  selectedInquiry?.id === inquiry.id ? 'ring-2 ring-blue-500' : ''
-                } ${inquiry.status === 'replied' && 'border-l-4 border-l-green-500'}`}
-                onClick={() => setSelectedInquiry(inquiry)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    {inquiry.property && (
-                      <div className="flex items-start gap-3 mb-3">
-                        {inquiry.property.images && inquiry.property.images[0] && (
-                          <img 
-                            src={inquiry.property.images[0]} 
-                            alt={inquiry.property.title}
-                            className="w-16 h-16 rounded-lg object-cover"
-                          />
-                        )}
-                        <div>
-                          <h3 className="font-semibold text-slate-900">{inquiry.property.title}</h3>
-                          <p className="text-sm text-slate-600">{inquiry.property.location}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <Badge className={getStatusBadge(inquiry.status)}>
-                    {inquiry.status === 'new' ? 'Pending' : inquiry.status}
-                  </Badge>
-                </div>
-
-                <div className="mb-3 p-3 bg-slate-50 rounded-lg">
-                  <p className="text-sm font-medium text-slate-700 mb-1">Your Question:</p>
-                  <p className="text-sm text-slate-600 line-clamp-2">{inquiry.message}</p>
-                </div>
-
-                {inquiry.status === 'replied' && inquiry.response && (
-                  <div className="mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <CheckCircle2 className="w-4 h-4 text-green-600" />
-                      <p className="text-sm font-medium text-green-900">Response Received</p>
-                    </div>
-                    <p className="text-sm text-green-800 line-clamp-2">{inquiry.response}</p>
-                    <p className="text-xs text-green-600 mt-2">
-                      💬 Click to read full response and ask follow-up questions
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <div className="flex items-center">
-                    <Clock className="w-3 h-3 mr-1" />
-                    {new Date(inquiry.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
-                  {inquiry.property && (
-                    <Link 
-                      href={`/user/property/${inquiry.property_id}`}
-                      className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      View Property
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  )}
-                </div>
-              </Card>
-            ))
-          )}
+          ))}
         </div>
-
-        {/* Detail Panel */}
-        <div className="lg:col-span-1">
-          <Card className="p-6 sticky top-6">
-            {selectedInquiry ? (
-              <>
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Inquiry Details</h3>
-                
-                {selectedInquiry.property && (
-                  <div className="mb-4">
-                    {selectedInquiry.property.images && selectedInquiry.property.images[0] && (
-                      <img 
-                        src={selectedInquiry.property.images[0]} 
-                        alt={selectedInquiry.property.title}
-                        className="w-full h-32 rounded-lg object-cover mb-3"
-                      />
-                    )}
-                    <h4 className="font-semibold text-slate-900">{selectedInquiry.property.title}</h4>
-                    <p className="text-sm text-slate-600">{selectedInquiry.property.location}</p>
-                    <Button asChild variant="outline" className="w-full mt-3" size="sm">
-                      <Link href={`/user/property/${selectedInquiry.property_id}`}>
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        View Property
-                      </Link>
-                    </Button>
-                  </div>
-                )}
-
-                <div className="mb-4 p-4 bg-slate-50 rounded-lg">
-                  <p className="text-xs text-slate-600 mb-1">Your Question</p>
-                  <p className="text-sm text-slate-900">{selectedInquiry.message}</p>
-                  <p className="text-xs text-slate-500 mt-2">
-                    Asked on {new Date(selectedInquiry.created_at).toLocaleDateString('en-US', {
-                      month: 'long',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
-                </div>
-
-                {selectedInquiry.status === 'replied' && selectedInquiry.response ? (
-                  <>
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-200 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle2 className="w-5 h-5 text-green-600" />
-                        <p className="text-sm font-medium text-green-900">Response</p>
-                      </div>
-                      <p className="text-sm text-green-800 whitespace-pre-wrap">{selectedInquiry.response}</p>
-                      {selectedInquiry.responded_at && (
-                        <p className="text-xs text-green-600 mt-3">
-                          Replied on {new Date(selectedInquiry.responded_at).toLocaleDateString('en-US', {
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Follow-up Section */}
-                    {!showFollowUp ? (
-                      <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                        <p className="text-sm text-slate-700 mb-3">
-                          💬 Have more questions about this property?
-                        </p>
-                        <Button 
-                          onClick={() => setShowFollowUp(true)}
-                          variant="outline"
-                          className="w-full"
-                          size="sm"
-                        >
-                          <Mail className="w-4 h-4 mr-2" />
-                          Ask Follow-up Question
-                        </Button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleFollowUpSubmit} className="space-y-3">
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs text-blue-700 mb-2">
-                            💡 Your follow-up question will be sent to the property owner
-                          </p>
-                        </div>
-                        <textarea
-                          value={followUpMessage}
-                          onChange={(e) => setFollowUpMessage(e.target.value)}
-                          placeholder="Type your follow-up question here..."
-                          className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24 text-sm"
-                          required
-                        />
-                        <div className="flex gap-2">
-                          <Button
-                            type="submit"
-                            disabled={sendingFollowUp || !followUpMessage.trim()}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                            size="sm"
-                          >
-                            {sendingFollowUp ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Sending...
-                              </>
-                            ) : (
-                              <>
-                                <Mail className="w-4 h-4 mr-2" />
-                                Send Question
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setShowFollowUp(false)
-                              setFollowUpMessage('')
-                            }}
-                            variant="outline"
-                            size="sm"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </form>
-                    )}
-                  </>
-                ) : (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-800">
-                      ⏳ Waiting for response from property owner...
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <Mail className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                <p className="text-slate-600">Select an inquiry to view details</p>
-              </div>
-            )}
-          </Card>
-        </div>
+        <div className="lg:col-span-1"><Card className="p-6 sticky top-6">{selectedThread ? <><h3 className="text-lg font-semibold text-slate-900 mb-4">Conversation</h3>{selectedThread.property && <Button asChild variant="outline" className="w-full mb-4" size="sm"><Link href={`/user/property/${selectedThread.property_id}`}><ExternalLink className="w-4 h-4 mr-2" />View Property</Link></Button>}<div className="space-y-3 max-h-[420px] overflow-y-auto mb-4">{selectedThread.inquiries.map((inq) => (<div key={inq.id} className="space-y-2"><div className="p-3 rounded-lg bg-slate-100"><p className="text-xs text-slate-500 mb-1">You</p><p className="text-sm text-slate-900 whitespace-pre-wrap">{inq.message}</p><p className="text-xs text-slate-400 mt-2 flex items-center"><Clock className="w-3 h-3 mr-1" />{new Date(inq.created_at).toLocaleString('en-US')}</p></div>{inq.response && <div className="p-3 rounded-lg bg-green-50 border border-green-200"><p className="text-xs text-green-700 mb-1">Owner Reply</p><p className="text-sm text-green-900 whitespace-pre-wrap">{inq.response}</p></div>}</div>))}</div>{!showFollowUp ? <Button onClick={() => setShowFollowUp(true)} variant="outline" className="w-full"><Mail className="w-4 h-4 mr-2" />Send Follow-up</Button> : <form onSubmit={handleFollowUpSubmit} className="space-y-3"><textarea value={followUpMessage} onChange={(e) => setFollowUpMessage(e.target.value)} placeholder="Type your follow-up question..." className="w-full p-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24 text-sm" required /><div className="flex gap-2"><Button type="submit" disabled={sendingFollowUp || !followUpMessage.trim()} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white" size="sm">{sendingFollowUp ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Mail className="w-4 h-4 mr-2" />Send</>}</Button><Button type="button" variant="outline" size="sm" onClick={() => { setShowFollowUp(false); setFollowUpMessage('') }}>Cancel</Button></div></form>}</> : <div className="text-center py-12"><Mail className="w-12 h-12 mx-auto text-slate-300 mb-3" /><p className="text-slate-600">Select a conversation</p></div>}</Card></div>
       </div>
     </div>
   )
 }
+
+
+
+
+

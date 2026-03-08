@@ -30,9 +30,9 @@ const PropertyCard = ({ property, userRole, initialSaved = false, onSaveChange }
   const [isSaved, setIsSaved] = useState(initialSaved)
   const [isSaving, setIsSaving] = useState(false)
 
-  const formatter = new Intl.NumberFormat('en-US', {
+  const formatter = new Intl.NumberFormat('en-IN', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'INR',
     maximumFractionDigits: 0,
   })
 

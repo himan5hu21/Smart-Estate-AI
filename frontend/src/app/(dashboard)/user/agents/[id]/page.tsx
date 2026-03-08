@@ -104,7 +104,7 @@ export default function AgentProfilePage() {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Agent Not Found</h2>
         <p className="text-gray-500">The agent profile you are looking for does not exist.</p>
-        <Link href="/agents">
+        <Link href="/user/agents">
           <Button className="mt-6">Back to Agents</Button>
         </Link>
       </div>
@@ -119,7 +119,7 @@ export default function AgentProfilePage() {
     <div className="min-h-screen bg-gray-50 pb-12">
       {/* Cover Image & Profile Header */}
       <div className="bg-white border-b shadow-sm mb-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="mx-auto">
           <div className="h-48 w-full bg-gradient-to-r from-blue-600 to-indigo-700"></div>
           
           <div className="px-4 sm:px-8 pb-8">
@@ -199,7 +199,7 @@ export default function AgentProfilePage() {
             {activeListings.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {activeListings.map((listing: any) => (
-                  <Link key={listing.id} href={`/property/${listing.id}`} className="group flex flex-col border rounded-xl overflow-hidden hover:shadow-lg transition-all bg-white hover:-translate-y-1 duration-200">
+                  <Link key={listing.id} href={`/user/property/${listing.id}`} className="group flex flex-col border rounded-xl overflow-hidden hover:shadow-lg transition-all bg-white hover:-translate-y-1 duration-200">
                     <div className="aspect-[4/3] relative bg-gray-100 overflow-hidden">
                       {listing.images && listing.images.length > 0 ? (
                         <img 
@@ -353,6 +353,7 @@ export default function AgentProfilePage() {
     </div>
   )
 }
+
 
 
 

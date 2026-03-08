@@ -9,18 +9,38 @@ import { getPropertyById, deleteProperty, getInquiries } from '@/lib/api'
 import { useToast } from '@/ui/Toast'
 import dynamic from 'next/dynamic'
 
-// Dynamically import Map to disable SSR
 const PropertyMap = dynamic(() => import('@/ui/PropertyMap'), {
   loading: () => <div className="h-[300px] w-full bg-slate-100 animate-pulse rounded-xl" />,
   ssr: false
 })
 
-export default function MyPropertyDetailsPage() {
+type PropertyDetails = {
+  id: number
+  title: string
+  location: string
+  description?: string
+  status?: string
+  views?: number
+  latitude?: number
+  longitude?: number
+  video_url?: string
+  images?: string[]
+}
+
+type Inquiry = {
+  id?: string | number
+  name: string
+  email: string
+  message: string
+  created_at: string
+}
+
+export default function SellerMyPropertyDetailsPage() {
   const params = useParams()
   const router = useRouter()
   const { toast } = useToast()
-  const [property, setProperty] = useState<any>(null)
-  const [inquiries, setInquiries] = useState<any[]>([])
+  const [property, setProperty] = useState<PropertyDetails | null>(null)
+  const [inquiries, setInquiries] = useState<Inquiry[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
 
@@ -29,11 +49,11 @@ export default function MyPropertyDetailsPage() {
       if (!params.id) return
       try {
         const [propData, inqData] = await Promise.all([
-            getPropertyById(params.id as string),
-            getInquiries(params.id as string)
+          getPropertyById(params.id as string),
+          getInquiries(params.id as string)
         ])
-        setProperty(propData)
-        setInquiries(inqData || [])
+        setProperty(propData as PropertyDetails)
+        setInquiries((inqData || []) as Inquiry[])
       } catch (error) {
         console.error(error)
         toast({ type: 'error', message: 'Failed to load property details' })
@@ -41,19 +61,22 @@ export default function MyPropertyDetailsPage() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [params.id, toast])
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this listing? This action cannot be undone.')) return
+    if (!property) return
 
     setDeleting(true)
     try {
       await deleteProperty(property.id)
       toast({ type: 'success', message: 'Property deleted successfully' })
-      router.push('/agent/my-listings')
-    } catch (error: any) {
-      toast({ type: 'error', message: error.message || 'Failed to delete property' })
+      router.push('/seller/my-listings')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete property'
+      toast({ type: 'error', message })
     } finally {
       setDeleting(false)
     }
@@ -73,8 +96,8 @@ export default function MyPropertyDetailsPage() {
           </div>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="text-destructive hover:bg-destructive/10"
             onClick={handleDelete}
             disabled={deleting}
@@ -83,7 +106,7 @@ export default function MyPropertyDetailsPage() {
             {deleting ? 'Deleting...' : 'Delete'}
           </Button>
           <Button asChild>
-            <Link href={`/agent/add-property?edit=${property.id}`}>
+            <Link href={`/seller/add-property?edit=${property.id}`}>
               <Edit className="w-4 h-4 mr-2" />
               Edit Listing
             </Link>
@@ -112,16 +135,16 @@ export default function MyPropertyDetailsPage() {
         </div>
         <div className="p-6 bg-white rounded-xl border shadow-sm flex items-center gap-4">
           <div className="p-3 bg-green-100 text-green-600 rounded-lg">
-             <MessageSquare size={24} />
+            <MessageSquare size={24} />
           </div>
           <div>
             <p className="text-2xl font-bold">{inquiries.length}</p>
             <p className="text-sm text-muted-foreground">Inquiries</p>
           </div>
         </div>
-         <div className="p-6 bg-white rounded-xl border shadow-sm flex items-center gap-4">
+        <div className="p-6 bg-white rounded-xl border shadow-sm flex items-center gap-4">
           <div className="p-3 bg-yellow-100 text-yellow-600 rounded-lg">
-             <BarChart3 size={24} />
+            <BarChart3 size={24} />
           </div>
           <div>
             <p className="text-lg font-bold capitalize">{property.status}</p>
@@ -132,50 +155,38 @@ export default function MyPropertyDetailsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 bg-white rounded-xl border shadow-sm p-6 space-y-8">
-          
-           {/* Listing Details */}
-           <div>
-             <h2 className="text-xl font-semibold mb-4">Listing Details</h2>
-             <p className="text-muted-foreground whitespace-pre-wrap">{property.description}</p>
-           </div>
-          
-           {/* Map Section */}
-           <div>
-              <h3 className="text-lg font-semibold mb-3">Location</h3>
-              {property.latitude && property.longitude ? (
-                  <PropertyMap 
-                      location={property.title} 
-                      lat={property.latitude} 
-                      lng={property.longitude} 
-                  />
-              ) : (
-                  <div className="bg-gray-50 p-6 text-center rounded-xl text-muted-foreground border">Location coordinates not set</div>
-              )}
-           </div>
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Listing Details</h2>
+            <p className="text-muted-foreground whitespace-pre-wrap">{property.description}</p>
+          </div>
 
-           {/* Video Section */}
-           {property.video_url && (
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Video Tour</h3>
-                <div className="aspect-video bg-black rounded-xl overflow-hidden border">
-                  <video 
-                    src={property.video_url} 
-                    controls 
-                    className="w-full h-full"
-                  />
-                </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-3">Location</h3>
+            {property.latitude && property.longitude ? (
+              <PropertyMap location={property.title} lat={property.latitude} lng={property.longitude} />
+            ) : (
+              <div className="bg-gray-50 p-6 text-center rounded-xl text-muted-foreground border">Location coordinates not set</div>
+            )}
+          </div>
+
+          {property.video_url && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Video Tour</h3>
+              <div className="aspect-video bg-black rounded-xl overflow-hidden border">
+                <video src={property.video_url} controls className="w-full h-full" />
               </div>
-           )}
+            </div>
+          )}
 
           {property.images && (
-              <div>
-                  <h3 className="font-semibold mb-2">Images</h3>
-                  <div className="grid grid-cols-3 gap-2">
-                       {property.images.map((img: string, i: number) => (
-                           <img key={i} src={img} className="rounded-lg object-cover h-24 w-full" />
-                       ))}
-                  </div>
+            <div>
+              <h3 className="font-semibold mb-2">Images</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {property.images.map((img, i) => (
+                  <img key={i} src={img} alt={`Property image ${i + 1}`} className="rounded-lg object-cover h-24 w-full" />
+                ))}
               </div>
+            </div>
           )}
         </div>
 
@@ -183,21 +194,21 @@ export default function MyPropertyDetailsPage() {
           <h2 className="text-xl font-semibold mb-4">Recent Inquiries</h2>
           <div className="space-y-4">
             {inquiries.length > 0 ? (
-                inquiries.map((inq, i) => (
-                    <div key={inq.id || i} className="p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex justify-between mb-1">
-                          <span className="font-medium">{inq.name}</span>
-                          <span className="text-xs text-muted-foreground">{new Date(inq.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-xs text-blue-600 mb-1">{inq.email}</p>
-                        <p className="text-sm text-muted-foreground truncate">{inq.message}</p>
-                    </div>
-                ))
+              inquiries.map((inq, i) => (
+                <div key={inq.id || i} className="p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="flex justify-between mb-1">
+                    <span className="font-medium">{inq.name}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(inq.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-xs text-blue-600 mb-1">{inq.email}</p>
+                  <p className="text-sm text-muted-foreground truncate">{inq.message}</p>
+                </div>
+              ))
             ) : (
-                <p className="text-sm text-muted-foreground">No recent inquiries.</p>
+              <p className="text-sm text-muted-foreground">No recent inquiries.</p>
             )}
             <Button asChild variant="ghost" className="w-full text-blue-600">
-              <Link href="/agent/inquiries">View All Inquiries</Link>
+              <Link href="/seller/inquiries">View All Inquiries</Link>
             </Button>
           </div>
         </div>

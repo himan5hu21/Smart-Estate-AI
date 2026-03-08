@@ -7,7 +7,7 @@ import { UserRole } from "./Input";
 import { Slot } from "@radix-ui/react-slot";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "danger" | "link";
   size?: "sm" | "md" | "lg" | "icon";
   role?: UserRole;
   loading?: boolean;
@@ -57,6 +57,7 @@ export const Button = ({
     outline: isSpecialVariant ? roleStyles[role].outline : "",
     ghost: "hover:bg-gray-100 text-gray-600 hover:text-gray-900",
     danger: "bg-red-500 text-white hover:bg-red-600 shadow-red-100",
+    link: "text-blue-600 underline-offset-4 hover:underline hover:bg-transparent",
   };
 
   const sizes = {

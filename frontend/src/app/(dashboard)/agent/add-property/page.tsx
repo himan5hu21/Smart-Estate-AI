@@ -9,7 +9,7 @@ import { Button } from '@/ui/Button'
 import { Select } from '@/ui/Select'
 import { useState, useEffect, useCallback } from 'react'
 import { uploadFile } from '@/lib/storage'
-import { addProperty, getPropertyById, updateProperty } from '@/lib/api'
+import { addProperty, getProperties, getPropertyById, updateProperty } from '@/lib/api'
 import { getCurrentUser } from '@/lib/auth'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/Card'
@@ -17,6 +17,7 @@ import { useToast } from '@/ui/Toast'
 import dynamic from 'next/dynamic'
 import { AIDescriptionGenerator } from '@/components/AIDescriptionGenerator'
 import { LocationSearch } from '@/ui/LocationSearch'
+import { aiClient } from '@/lib/ai-client'
 
 // Dynamically import MapPicker
 const MapPicker = dynamic(() => import('@/ui/MapPicker'), {
@@ -43,6 +44,8 @@ export default function AddPropertyPage() {
   const [existingVideo, setExistingVideo] = useState<string | null>(null)
   const [docsFile, setDocsFile] = useState<File | null>(null)
   const [existingDocs, setExistingDocs] = useState<string[]>([])
+  const [aiPriceLoading, setAiPriceLoading] = useState(false)
+  const [aiValuation, setAiValuation] = useState<{ estimatedValue: number; minValue: number; maxValue: number; confidence: number; trend: string; reasoning?: string } | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('edit')
@@ -142,13 +145,13 @@ export default function AddPropertyPage() {
   }, [setValue])
 
   // File validation helpers
-  const validateImages = (files: FileList | null): File[] | null => {
+  const validateImages = (files: FileList | null, currentCount: number): File[] | null => {
     if (!files || files.length === 0) return null
 
     const fileArray = Array.from(files)
     
-    // Check count limit
-    if (fileArray.length > MAX_IMAGE_COUNT) {
+    // Check total count limit (existing + already selected + newly selected)
+    if (currentCount + fileArray.length > MAX_IMAGE_COUNT) {
       toast({ type: 'error', message: `Maximum ${MAX_IMAGE_COUNT} images allowed` })
       return null
     }
@@ -198,6 +201,75 @@ export default function AddPropertyPage() {
     return true
   }
 
+
+
+  const handleAIPricingCheck = async () => {
+    const title = watch('title')
+    const location = watch('location')
+    const price = Number(watch('price') || 0)
+    const bedrooms = Number(watch('bedrooms') || 0)
+    const bathrooms = Number(watch('bathrooms') || 0)
+    const areaSqft = Number(watch('area_sqft') || 0)
+
+    if (!title || !location || areaSqft <= 0) {
+      toast({ type: 'warning', message: 'Add title, location, and area before AI Price Check.' })
+      return
+    }
+
+    setAiPriceLoading(true)
+    try {
+      const comparablesRaw = await getProperties({ status: 'active', type: watch('type') })
+      const comparables = ((comparablesRaw || []) as Array<{ id?: number | string; price?: number; area_sqft?: number; location?: string }>)
+        .filter((p) => p?.id && p?.price && p?.area_sqft)
+        .filter((p) => !editId || String(p.id) !== String(editId))
+        .sort((a, b) => {
+          const sameLocationA = String(a.location || '').toLowerCase().includes(String(location).toLowerCase()) ? 0 : 1
+          const sameLocationB = String(b.location || '').toLowerCase().includes(String(location).toLowerCase()) ? 0 : 1
+          if (sameLocationA !== sameLocationB) return sameLocationA - sameLocationB
+          return Math.abs(Number(a.area_sqft || 0) - areaSqft) - Math.abs(Number(b.area_sqft || 0) - areaSqft)
+        })
+        .slice(0, 10)
+
+      if (comparables.length === 0) {
+        toast({ type: 'warning', message: 'No comparable listings found for AI valuation.' })
+        return
+      }
+
+      const valuation = await aiClient.valueProperty(
+        {
+          title,
+          location,
+          price,
+          bedrooms,
+          bathrooms,
+          area_sqft: areaSqft,
+          year_built: Number(watch('year_built') || 0),
+          furnishing_status: watch('furnishing_status'),
+          amenities: watch('amenities') || [],
+          type: watch('type')
+        },
+        comparables
+      )
+
+      const normalized = {
+        estimatedValue: Number(valuation.estimatedValue || 0),
+        minValue: Number(valuation.minValue || 0),
+        maxValue: Number(valuation.maxValue || 0),
+        confidence: Number(valuation.confidence || 0),
+        trend: String(valuation.trend || 'stable'),
+        reasoning: valuation.reasoning ? String(valuation.reasoning) : ''
+      }
+
+      setAiValuation(normalized)
+      toast({ type: 'success', message: `AI estimate ready: INR ${normalized.estimatedValue.toLocaleString('en-IN')}` })
+    } catch (error) {
+      console.error('AI price check failed:', error)
+      toast({ type: 'error', message: 'AI price check failed. Ensure AI backend is running.' })
+    } finally {
+      setAiPriceLoading(false)
+    }
+  }
+
   const onSubmit = async (data: PropertyFormValues) => {
     setLoading(true)
     try {
@@ -235,7 +307,7 @@ export default function AddPropertyPage() {
       }
 
       // Clean up the data - remove undefined/empty values
-      const submissionData: any = {
+      const submissionData: Record<string, unknown> = {
           title: data.title,
           description: data.description,
           price: data.price,
@@ -349,7 +421,7 @@ export default function AddPropertyPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <InputNumber
-                  label="Price ($)"
+                  label="Price (₹)"
                   name="price"
                   register={register}
                   error={(touchedFields.price || isSubmitted) ? errors.price : undefined}
@@ -578,7 +650,7 @@ export default function AddPropertyPage() {
                 <label className="text-sm font-semibold text-gray-700/90">
                   Property Images (Multiple)<span className="text-red-500 ml-1">*</span>
                 </label>
-                {existingImages.length > 0 && imageFiles.length === 0 && (
+                {existingImages.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-2">
                     {existingImages.map((img, idx) => (
                       <div key={idx} className="relative w-24 h-24 rounded-lg overflow-hidden border group">
@@ -622,9 +694,10 @@ export default function AddPropertyPage() {
                   accept="image/jpeg,image/jpg,image/png,image/webp" 
                   multiple
                   onChange={(e) => {
-                    const validFiles = validateImages(e.target.files)
+                    const validFiles = validateImages(e.target.files, existingImages.length + imageFiles.length)
                     if (validFiles) {
-                      setImageFiles(validFiles)
+                      setImageFiles((prev) => [...prev, ...validFiles])
+                      e.target.value = ''
                     } else {
                       e.target.value = ''
                     }
@@ -660,12 +733,34 @@ export default function AddPropertyPage() {
 
             </div>
 
+            {aiValuation && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
+                <p className="text-sm font-semibold text-emerald-800">AI Price Estimate</p>
+                <p className="text-2xl font-bold text-emerald-900">?{aiValuation.estimatedValue.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-emerald-700">
+                  Range: ?{aiValuation.minValue.toLocaleString('en-IN')} - ?{aiValuation.maxValue.toLocaleString('en-IN')} | Confidence: {aiValuation.confidence}% | Trend: {aiValuation.trend}
+                </p>
+                {aiValuation.reasoning && (
+                  <p className="text-xs text-emerald-700">{aiValuation.reasoning}</p>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setValue('price', aiValuation.estimatedValue, { shouldDirty: true, shouldTouch: true })
+                    toast({ type: 'success', message: 'Price updated from AI estimate.' })
+                  }}
+                >
+                  Use This AI Price
+                </Button>
+              </div>
+            )}
             <div className="pt-4 flex gap-4">
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? 'Saving...' : (editId ? 'Update Property' : 'List Property')}
               </Button>
-              <Button type="button" variant="outline" className="w-full" onClick={() => toast({ type: 'info', message: "AI Price Check is coming soon!" })}>
-                Check AI Price
+              <Button type="button" variant="outline" className="w-full" onClick={handleAIPricingCheck} disabled={aiPriceLoading}>
+                {aiPriceLoading ? 'Checking AI Price...' : 'Check AI Price'}
               </Button>
             </div>
           </form>
@@ -675,3 +770,7 @@ export default function AddPropertyPage() {
     </div>
   )
 }
+
+
+
+

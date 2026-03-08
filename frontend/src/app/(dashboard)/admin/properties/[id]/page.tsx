@@ -55,6 +55,18 @@ export default function AdminPropertyDetailsPage() {
     }
   }
 
+
+  function handleEditListing() {
+    if (!property?.id) return
+
+    const ownerRole = property?.profiles?.role
+    if (ownerRole === 'seller') {
+      router.push(`/seller/add-property?edit=${property.id}`)
+      return
+    }
+
+    router.push(`/agent/add-property?edit=${property.id}`)
+  }
   function formatPrice(price: number) {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -90,7 +102,7 @@ export default function AdminPropertyDetailsPage() {
             <Archive className="w-4 h-4 mr-2" />
             Archive
           </Button>
-          <Button>
+          <Button onClick={handleEditListing}>
             <Edit2 className="w-4 h-4 mr-2" />
             Edit Listing
           </Button>
@@ -248,3 +260,4 @@ export default function AdminPropertyDetailsPage() {
     </div>
   )
 }
+

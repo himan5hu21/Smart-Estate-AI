@@ -9,8 +9,16 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { PlusCircle } from 'lucide-react'
 
-export default function AgentMyListings() {
-  const [properties, setProperties] = useState<any[]>([])
+type ListingRow = {
+  id: number
+  title: string
+  location: string
+  price: number
+  status: string
+}
+
+export default function SellerMyListings() {
+  const [properties, setProperties] = useState<ListingRow[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchMyProperties = async () => {
@@ -18,7 +26,7 @@ export default function AgentMyListings() {
       const user = await getCurrentUser()
       if (user) {
         const data = await getMyProperties(user.id)
-        setProperties(data)
+        setProperties((data || []) as ListingRow[])
       }
     } catch (error) {
       console.error('Failed to fetch properties:', error)
@@ -54,7 +62,7 @@ export default function AgentMyListings() {
           <h1 className="text-3xl font-bold">My Listings</h1>
           <p className="text-muted-foreground">Manage your posted properties.</p>
         </div>
-        <Link href="/agent/add-property">
+        <Link href="/seller/add-property">
           <Button>
             <PlusCircle className="mr-2 h-4 w-4" />
             Add New Property
@@ -69,7 +77,7 @@ export default function AgentMyListings() {
               <TableCell className="text-center py-12 text-muted-foreground" colSpan={5}>
                 <div className="flex flex-col items-center justify-center space-y-3">
                   <p>No properties found.</p>
-                  <Link href="/agent/add-property">
+                  <Link href="/seller/add-property">
                     <Button variant="outline">Create your first listing</Button>
                   </Link>
                 </div>
@@ -79,27 +87,27 @@ export default function AgentMyListings() {
             properties.map((property) => (
               <TableRow key={property.id}>
                 <TableCell className="font-medium">
-                  <Link href={`/agent/my-listings/${property.id}`} className="text-blue-600 hover:underline">
+                  <Link href={`/seller/my-listings/${property.id}`} className="text-blue-600 hover:underline">
                     {property.title}
                   </Link>
                 </TableCell>
                 <TableCell>{property.location}</TableCell>
                 <TableCell>Rs {property.price.toLocaleString()}</TableCell>
                 <TableCell>
-                  <Badge 
-                    variant="outline" 
+                  <Badge
+                    variant="outline"
                     className={cn(
-                      "capitalize",
-                      property.status === 'active' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                      'capitalize',
+                      property.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                     )}
                   >
                     {property.status}
                   </Badge>
                 </TableCell>
                 <TableCell className="space-x-2">
-                   <Link href={`/agent/my-listings/${property.id}`}>
-                      <Button size="sm" variant="outline">Manage</Button>
-                   </Link>
+                  <Link href={`/seller/my-listings/${property.id}`}>
+                    <Button size="sm" variant="outline">Manage</Button>
+                  </Link>
                 </TableCell>
               </TableRow>
             ))
@@ -109,4 +117,3 @@ export default function AgentMyListings() {
     </div>
   )
 }
-

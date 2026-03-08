@@ -180,6 +180,101 @@ export async function getDashboardStats() {
   }
 }
 
+
+export async function getAdminDashboardAnalytics() {
+  const supabase = await createClient()
+
+  type PropertyLite = { id?: string; status?: string | null; type?: string | null; created_at?: string | null }
+  type UserLite = { id?: string; role?: string | null; is_verified?: boolean | null; created_at?: string | null }
+  type InquiryLite = { id?: string; status?: string | null; response?: string | null; created_at?: string | null }
+
+  const [{ data: properties, error: propertiesError }, { data: users, error: usersError }, { data: inquiries, error: inquiriesError }] = await Promise.all([
+    supabase.from('properties').select('*'),
+    supabase.from('profiles').select('*'),
+    supabase.from('inquiries').select('*')
+  ])
+
+  if (propertiesError) throw propertiesError
+  if (usersError) throw usersError
+  if (inquiriesError) throw inquiriesError
+
+  const safeProperties: PropertyLite[] = (properties || []) as PropertyLite[]
+  const safeUsers: UserLite[] = (users || []) as UserLite[]
+  const safeInquiries: InquiryLite[] = (inquiries || []) as InquiryLite[]
+
+  const propertiesByStatus = safeProperties.reduce<Record<string, number>>((acc, item) => {
+    const key = String(item.status || 'unknown').toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const propertiesByType = safeProperties.reduce<Record<string, number>>((acc, item) => {
+    const key = String(item.type || 'unknown').toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const usersByRole = safeUsers.reduce<Record<string, number>>((acc, item) => {
+    const key = String(item.role || 'unknown').toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const now = new Date()
+  const dayKeys: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(now.getDate() - i)
+    dayKeys.push(d.toISOString().slice(0, 10))
+  }
+
+  const activityMap = dayKeys.reduce<Record<string, { properties: number; users: number; inquiries: number }>>((acc, key) => {
+    acc[key] = { properties: 0, users: 0, inquiries: 0 }
+    return acc
+  }, {})
+
+  safeProperties.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].properties += 1
+  })
+  safeUsers.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].users += 1
+  })
+  safeInquiries.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].inquiries += 1
+  })
+
+  const activity7d = dayKeys.map((day) => ({ day, ...activityMap[day] }))
+
+  const pendingProperties = propertiesByStatus.pending || 0
+  const unverifiedAgents = safeUsers.filter((user) => user.role === 'agent' && !user.is_verified).length
+  const openInquiries = safeInquiries.filter((inquiry) => {
+    if (typeof inquiry.status === 'string') return inquiry.status !== 'closed'
+    return !inquiry.response
+  }).length
+
+  return {
+    totals: {
+      properties: safeProperties.length,
+      users: safeUsers.length,
+      inquiries: safeInquiries.length,
+      pendingProperties,
+      unverifiedAgents,
+      openInquiries
+    },
+    distributions: {
+      propertiesByStatus,
+      propertiesByType,
+      usersByRole
+    },
+    activity7d
+  }
+}
 export async function updateProfile(id: string, updates: any) {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -290,6 +385,115 @@ export async function submitInquiry(data: any) {
   return true
 }
 
+export async function submitAgentInquiry(data: {
+  agent_id: string
+  name: string
+  email: string
+  message: string
+}) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  const { error } = await supabase.from('agent_inquiries').insert([{
+    ...data,
+    user_id: user.id,
+    status: 'new'
+  }])
+
+  if (error) throw error
+  return true
+}
+
+export async function getMyAgentMessages() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  const { data, error } = await supabase
+    .from('agent_inquiries')
+    .select('*')
+    .eq('agent_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching agent messages:', error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function respondToAgentMessage(inquiryId: string, response: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  const { data, error } = await supabase
+    .from('agent_inquiries')
+    .update({
+      response,
+      status: 'replied',
+      responded_at: new Date().toISOString(),
+      responded_by: user.id
+    })
+    .eq('id', inquiryId)
+    .eq('agent_id', user.id)
+    .select()
+
+  if (error) {
+    console.error('Error responding to agent message:', error)
+    throw error
+  }
+
+  return data
+}
+
+export async function getMySubmittedAgentMessages() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  const { data: messages, error: msgError } = await supabase
+    .from('agent_inquiries')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+
+  if (msgError) {
+    console.error('Error fetching submitted agent messages:', msgError)
+    throw msgError
+  }
+
+  if (!messages || messages.length === 0) {
+    return []
+  }
+
+  const agentIds = [...new Set(messages.map(m => m.agent_id))]
+
+  const { data: agents, error: agentError } = await supabase
+    .from('profiles')
+    .select('id, full_name, avatar_url, agency_name')
+    .in('id', agentIds)
+
+  if (agentError) {
+    console.error('Error fetching agent profiles:', agentError)
+  }
+
+  const messagesWithAgent = messages.map((msg) => {
+    const agent = agents?.find(a => a.id === msg.agent_id)
+    return {
+      ...msg,
+      agent: agent || null
+    }
+  })
+
+  return messagesWithAgent
+}
 export async function getMyInquiries() {
   const supabase = await createClient()
   
@@ -606,3 +810,227 @@ export async function getSavedPropertyIds() {
   
   return data?.map(item => item.property_id) || []
 }
+
+
+
+
+
+export async function getUserDashboardAnalytics() {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  type SavedLite = { property_id?: number; created_at?: string | null }
+  type InquiryLite = { id?: string; status?: string | null; response?: string | null; created_at?: string | null }
+  type AlertLite = { id?: string; enabled?: boolean | null; created_at?: string | null }
+
+  const [{ data: savedRows, error: savedError }, { data: inquiryRows, error: inquiryError }, { data: alertRows, error: alertError }] = await Promise.all([
+    supabase.from('saved_properties').select('*').eq('user_id', user.id),
+    supabase.from('inquiries').select('*').eq('user_id', user.id),
+    supabase.from('property_alerts').select('*').eq('user_id', user.id)
+  ])
+
+  if (savedError) throw savedError
+  if (inquiryError) throw inquiryError
+  if (alertError) throw alertError
+
+  const saved: SavedLite[] = (savedRows || []) as SavedLite[]
+  const inquiries: InquiryLite[] = (inquiryRows || []) as InquiryLite[]
+  const alerts: AlertLite[] = (alertRows || []) as AlertLite[]
+
+  const inquiryStatus = inquiries.reduce<Record<string, number>>((acc, inquiry) => {
+    const key = String(inquiry.status || (inquiry.response ? 'replied' : 'new')).toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const now = new Date()
+  const dayKeys: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(now.getDate() - i)
+    dayKeys.push(d.toISOString().slice(0, 10))
+  }
+
+  const activityMap = dayKeys.reduce<Record<string, { saved: number; inquiries: number; alerts: number }>>((acc, key) => {
+    acc[key] = { saved: 0, inquiries: 0, alerts: 0 }
+    return acc
+  }, {})
+
+  saved.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].saved += 1
+  })
+  inquiries.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].inquiries += 1
+  })
+  alerts.forEach((item) => {
+    if (!item.created_at) return
+    const key = new Date(item.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].alerts += 1
+  })
+
+  const activeAlerts = alerts.filter((alert) => alert.enabled !== false).length
+  const openInquiries = inquiries.filter((inquiry) => {
+    if (typeof inquiry.status === 'string') return inquiry.status !== 'closed'
+    return !inquiry.response
+  }).length
+
+  return {
+    totals: {
+      savedProperties: saved.length,
+      inquiries: inquiries.length,
+      activeAlerts,
+      openInquiries
+    },
+    distributions: {
+      inquiryStatus
+    },
+    activity7d: dayKeys.map((day) => ({ day, ...activityMap[day] }))
+  }
+}
+
+type CreatorRole = 'agent' | 'seller'
+
+async function getCreatorDashboardAnalytics(role: CreatorRole) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  type PropertyLite = { id?: number; status?: string | null; created_at?: string | null }
+  type InquiryLite = { id?: string; status?: string | null; response?: string | null; created_at?: string | null }
+
+  const { data: propertyRows, error: propertyError } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('posted_by', user.id)
+
+  if (propertyError) throw propertyError
+
+  const properties: PropertyLite[] = (propertyRows || []) as PropertyLite[]
+  const propertyIds = properties.map((p) => p.id).filter((id): id is number => typeof id === 'number')
+
+  let inquiries: InquiryLite[] = []
+  if (propertyIds.length > 0) {
+    const { data: inquiryRows, error: inquiryError } = await supabase
+      .from('inquiries')
+      .select('*')
+      .in('property_id', propertyIds)
+
+    if (inquiryError) throw inquiryError
+    inquiries = (inquiryRows || []) as InquiryLite[]
+  }
+
+  const listingStatus = properties.reduce<Record<string, number>>((acc, property) => {
+    const key = String(property.status || 'unknown').toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const inquiryStatus = inquiries.reduce<Record<string, number>>((acc, inquiry) => {
+    const key = String(inquiry.status || (inquiry.response ? 'replied' : 'new')).toLowerCase()
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const now = new Date()
+  const dayKeys: string[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(now.getDate() - i)
+    dayKeys.push(d.toISOString().slice(0, 10))
+  }
+
+  const activityMap = dayKeys.reduce<Record<string, { listings: number; inquiries: number }>>((acc, key) => {
+    acc[key] = { listings: 0, inquiries: 0 }
+    return acc
+  }, {})
+
+  properties.forEach((property) => {
+    if (!property.created_at) return
+    const key = new Date(property.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].listings += 1
+  })
+
+  inquiries.forEach((inquiry) => {
+    if (!inquiry.created_at) return
+    const key = new Date(inquiry.created_at).toISOString().slice(0, 10)
+    if (activityMap[key]) activityMap[key].inquiries += 1
+  })
+
+  const openInquiries = inquiries.filter((inquiry) => {
+    if (typeof inquiry.status === 'string') return inquiry.status !== 'closed'
+    return !inquiry.response
+  }).length
+
+  const closedInquiries = inquiries.filter((inquiry) => {
+    if (typeof inquiry.status === 'string') return inquiry.status === 'closed'
+    return Boolean(inquiry.response)
+  }).length
+
+  return {
+    role,
+    totals: {
+      listings: properties.length,
+      activeListings: listingStatus.active || 0,
+      pendingListings: listingStatus.pending || 0,
+      soldListings: listingStatus.sold || 0,
+      inquiries: inquiries.length,
+      openInquiries,
+      closedInquiries
+    },
+    distributions: {
+      listingStatus,
+      inquiryStatus
+    },
+    activity7d: dayKeys.map((day) => ({ day, ...activityMap[day] }))
+  }
+}
+
+export async function getAgentDashboardAnalytics() {
+  return getCreatorDashboardAnalytics('agent')
+}
+
+export async function getSellerDashboardAnalytics() {
+  return getCreatorDashboardAnalytics('seller')
+}
+export async function updateInquiryStatus(inquiryId: string, status: 'new' | 'replied' | 'closed') {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('User not authenticated')
+
+  const updates: any = { status }
+  if (status === 'closed') {
+    updates.responded_by = user.id
+    updates.responded_at = new Date().toISOString()
+  }
+
+  const { data, error } = await supabase
+    .from('inquiries')
+    .update(updates)
+    .eq('id', inquiryId)
+    .select()
+
+  if (error) {
+    console.error('Error updating inquiry status:', error)
+    throw error
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('No inquiry was updated. It may be restricted by permissions.')
+  }
+
+  return data
+}
+
+
+
+
+
+
