@@ -65,6 +65,12 @@ const roleStyles: Record<UserRole, { trigger: string; item: string; tag: string;
     tag: "bg-user-primary/10 text-user-primary border-user-primary/20",
     check: "text-user-primary",
   },
+  seller: {
+    trigger: "ring-amber-500/20 border-amber-500",
+    item: "bg-amber-500/5 text-amber-600 font-semibold",
+    tag: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    check: "text-amber-600",
+  },
 };
 
 export const Select = <T extends FieldValues>({

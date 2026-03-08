@@ -32,6 +32,11 @@ const roleStyles: Record<UserRole, Record<string, string>> = {
     secondary: "bg-user-accent text-white hover:opacity-90",
     outline: "border-2 border-user-primary text-user-primary hover:bg-user-primary/5",
   },
+  seller: {
+    primary: "bg-amber-500 text-white hover:bg-amber-600 shadow-amber-200",
+    secondary: "bg-amber-400 text-white hover:opacity-90",
+    outline: "border-2 border-amber-500 text-amber-500 hover:bg-amber-500/5",
+  },
 };
 
 export const Button = ({

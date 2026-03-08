@@ -332,7 +332,7 @@ export async function updateProperty(id: string, updates: any) {
 }
 
 
-export async function deleteProperty(id: string) {
+export async function deleteProperty(id: string | number) {
   const supabase = await createClient()
   try {
     const { error } = await supabase

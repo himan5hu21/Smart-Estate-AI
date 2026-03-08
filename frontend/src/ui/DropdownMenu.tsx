@@ -40,7 +40,7 @@ interface DropdownMenuSeparatorProps {
 const DropdownMenuContext = React.createContext<{
   open: boolean;
   setOpen: (open: boolean) => void;
-  triggerRef: React.RefObject<HTMLButtonElement>;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
 }>({
   open: false,
   setOpen: () => {},
@@ -73,7 +73,7 @@ const DropdownMenuTrigger: React.FC<DropdownMenuTriggerProps> = ({
     return React.cloneElement(children as React.ReactElement<any>, {
       ref: triggerRef,
       onClick: handleClick,
-      ...children.props,
+      ...(children.props as any),
     });
   }
 

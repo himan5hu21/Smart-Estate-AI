@@ -55,12 +55,12 @@ export default function AlertsPage() {
     user_id: alert.user_id,
     office_location: alert.preferences.office_location,
     max_commute_minutes: alert.preferences.max_commute_minutes,
-    min_price: alert.preferences.min_price ?? null,
-    max_price: alert.preferences.max_price ?? null,
-    bedrooms: alert.preferences.bedrooms ?? null,
-    property_type: alert.preferences.property_type ?? null,
-    locations: alert.preferences.locations ?? null,
-    amenities: alert.preferences.amenities ?? null,
+    min_price: alert.preferences.min_price ?? undefined,
+    max_price: alert.preferences.max_price ?? undefined,
+    bedrooms: alert.preferences.bedrooms ?? undefined,
+    property_type: alert.preferences.property_type ?? undefined,
+    locations: alert.preferences.locations ?? undefined,
+    amenities: alert.preferences.amenities ?? undefined,
     enabled
   })
 
@@ -100,12 +100,12 @@ export default function AlertsPage() {
           longitude: officeLocation.lng
         },
         max_commute_minutes: maxCommute,
-        min_price: minPrice ? parseFloat(minPrice) : null,
-        max_price: maxPrice ? parseFloat(maxPrice) : null,
-        bedrooms: bedrooms ? parseInt(bedrooms) : null,
-        property_type: propertyType || null,
-        locations: null,
-        amenities: selectedAmenities.length > 0 ? selectedAmenities : null,
+        min_price: minPrice ? parseFloat(minPrice) : undefined,
+        max_price: maxPrice ? parseFloat(maxPrice) : undefined,
+        bedrooms: bedrooms ? parseInt(bedrooms) : undefined,
+        property_type: propertyType || undefined,
+        locations: undefined,
+        amenities: selectedAmenities.length > 0 ? selectedAmenities : undefined,
         enabled: true
       }
 
@@ -235,23 +235,31 @@ export default function AlertsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Bedrooms</label>
-              <Select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)}>
-                <option value="">Any</option>
-                <option value="1">1 BHK</option>
-                <option value="2">2 BHK</option>
-                <option value="3">3 BHK</option>
-                <option value="4">4+ BHK</option>
-              </Select>
+              <Select
+                value={bedrooms}
+                onValueChange={(val) => setBedrooms(String(val))}
+                options={[
+                  { label: 'Any', value: '' },
+                  { label: '1 BHK', value: '1' },
+                  { label: '2 BHK', value: '2' },
+                  { label: '3 BHK', value: '3' },
+                  { label: '4+ BHK', value: '4' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Property Type</label>
-              <Select value={propertyType} onChange={(e) => setPropertyType(e.target.value)}>
-                <option value="">Any</option>
-                <option value="apartment">Apartment</option>
-                <option value="villa">Villa</option>
-                <option value="house">House</option>
-                <option value="plot">Plot</option>
-              </Select>
+              <Select
+                value={propertyType}
+                onValueChange={(val) => setPropertyType(String(val))}
+                options={[
+                  { label: 'Any', value: '' },
+                  { label: 'Apartment', value: 'apartment' },
+                  { label: 'Villa', value: 'villa' },
+                  { label: 'House', value: 'house' },
+                  { label: 'Plot', value: 'plot' },
+                ]}
+              />
             </div>
           </div>
 
@@ -261,7 +269,7 @@ export default function AlertsPage() {
               {amenitiesList.map(amenity => (
                 <Badge
                   key={amenity}
-                  variant={selectedAmenities.includes(amenity) ? 'default' : 'outline'}
+                  variant={selectedAmenities.includes(amenity) ? 'solid' : 'outline'}
                   className="cursor-pointer"
                   onClick={() => {
                     setSelectedAmenities(prev =>
@@ -296,7 +304,7 @@ export default function AlertsPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <h3 className="text-lg font-semibold">Property Alert</h3>
-                    <Badge variant={alert.enabled ? 'default' : 'outline'}>
+                    <Badge variant={alert.enabled ? 'solid' : 'outline'}>
                       {alert.enabled ? 'Active' : 'Paused'}
                     </Badge>
                   </div>
